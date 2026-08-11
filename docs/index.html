@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Super Mario Bros. Arbitrary Code Execution: A Direct Single-Step RAM Jump in MesenCE · Blog</title>
-  <meta name="description" content="How we discovered a novel 6502 JumpEngine off-by-one primitive in SMB1 that bypasses cartridge swapping, open-bus state corruption, and multi-stage stack manipulation.">
+  <title>SMB1 Control-Flow Primitive: Direct Single-Step RAM Jump via JumpEngine $C891 · Technical Research</title>
+  <meta name="description" content="Technical analysis of a novel 6502 enemy-dispatch control-flow vector in Super Mario Bros. that resolves Enemy ID $85 directly into NES internal RAM at $03D0.">
 
   <!-- OpenGraph Meta -->
-  <meta property="og:title" content="Super Mario Bros. ACE: Direct Single-Step RAM Jump in MesenCE">
-  <meta property="og:description" content="Discovering a novel 6502 JumpEngine off-by-one primitive in SMB1 that bypasses cartridge swapping and multi-stage stack manipulation.">
+  <meta property="og:title" content="SMB1 Control-Flow Primitive: Direct Single-Step RAM Jump via JumpEngine $C891">
+  <meta property="og:description" content="A novel 6502 enemy-dispatch control-flow vector in Super Mario Bros. that resolves Enemy ID $85 directly into NES internal RAM at $03D0.">
 
   <!-- Fonts & MathJax -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
 
   <link rel="stylesheet" href="style.css">
@@ -22,16 +22,17 @@
 
   <div id="progress-bar"></div>
 
-  <!-- Navigation Header (Cursor Blog Style) -->
+  <!-- Navigation Header -->
   <header class="nav-header">
     <div class="nav-container">
       <div class="nav-left">
-        <a href="#" class="nav-logo">Research</a>
+        <a href="#" class="nav-logo">Security &amp; Emulation Research</a>
         <nav class="nav-links">
           <a href="#summary" class="nav-link">Overview</a>
-          <a href="#vulnerability" class="nav-link">Vector</a>
-          <a href="#payload" class="nav-link">Payload</a>
-          <a href="#comparison" class="nav-link">Comparison</a>
+          <a href="#trace" class="nav-link">Execution Trace</a>
+          <a href="#comparison" class="nav-link">Primitive Comparison</a>
+          <a href="#dataflow" class="nav-link">$03D0 Data-Flow</a>
+          <a href="#appendix" class="nav-link">Host Vulnerabilities</a>
         </nav>
       </div>
       <div class="nav-right">
@@ -45,47 +46,37 @@
 
     <!-- Hero Header -->
     <header class="article-hero">
-      <div class="badge-tag">research</div>
-      <h1 class="article-title">Super Mario Bros. Arbitrary Code Execution: A Direct Single-Step RAM Jump in MesenCE</h1>
-      <p class="article-subtitle">How we discovered a novel 6502 JumpEngine off-by-one primitive in SMB1 that bypasses cartridge swapping, open-bus state corruption, and multi-stage stack manipulation.</p>
+      <div class="badge-tag">technical disclosure</div>
+      <h1 class="article-title">Super Mario Bros. Control-Flow Primitive: Direct Single-Step RAM Jump via JumpEngine $C891</h1>
+      <p class="article-subtitle">Characterizing a previously undocumented 6502 enemy-dispatch control-flow vector in <em>Super Mario Bros.</em> (SMB1) where out-of-bounds Enemy ID <code>$85</code> forces an immediate Program Counter (PC) jump into NES internal RAM at <code>$03D0</code>.</p>
     </header>
 
     <!-- Main Article Content -->
     <main class="article-body">
 
-      <p id="summary">Arbitrary Code Execution (ACE) inside classic console ROMs remains one of the most technical domains in reverse engineering. While prior <em>Super Mario Bros.</em> (SMB1) exploit chains relied on multi-stage level loader redirections, open-bus CPU fetches, stack <code>RTI</code> manipulation, and pre-populated RAM state from cartridge swapping, our research uncovered a <strong>direct, single-step Arbitrary Code Execution vector</strong> in the SMB1 enemy dispatch engine.</p>
+      <h2 id="summary">Executive Summary &amp; Scope</h2>
+      <p>In 8-bit console reverse engineering, Arbitrary Code Execution (ACE) relies on two distinct primitives: <strong>1) a control-flow primitive</strong> that redirects the Program Counter (PC) into writable RAM, and <strong>2) a payload construction primitive</strong> that populates that RAM with executable machine code instructions.</p>
 
-      <!-- Hero Architectural Diagram -->
+      <p>This disclosure characterizes a novel 6502 control-flow primitive in <em>Super Mario Bros.</em> (SMB1). By analyzing the exact stack arithmetic of the SMB1 <code>JumpEngine</code> routine at <code>$8E04</code>, we identified that an out-of-bounds <strong>Enemy ID <code>$85</code></strong> causes the CPU dispatch table to read little-endian pointer <code>D0 03</code> directly from ROM byte <code>$C974</code>. This forces the CPU to jump directly into <strong>NES internal RAM (<code>$03D0</code>)</strong> in a single dispatch step.</p>
+
+      <!-- Vector Architecture Diagram -->
       <figure class="image-card">
         <div class="image-container">
           <img src="assets/hero_ace_diagram.svg" alt="MOS 6502 JumpEngine Execution Flow Diagram">
         </div>
         <figcaption class="image-caption">
-          Figure 1: Architectural execution flow of the JumpEngine <code>$C891</code> off-by-one mapping directly to NES RAM <code>$03D0</code> and driving dynamic PPU palette rendering.
+          Figure 1: 6502 JumpEngine <code>$C891</code> offset arithmetic mapping Enemy ID <code>$85</code> directly to NES internal RAM <code>$03D0</code>.
         </figcaption>
       </figure>
 
-      <p>By resolving a subtle discrepancy between disassembler labels and the effective arithmetic base address used by the 6502 <code>JumpEngine</code>, we identified that spawning <strong>Enemy ID <code>$85</code></strong> (natively obtainable via World <code>$4B</code> Bowser fireball kills) forces the CPU dispatch pointer directly into <strong>NES internal RAM (<code>$03D0</code>)</strong>.</p>
-
-      <!-- Live Video Demonstration Section -->
-      <h2>Live 60 FPS Demonstration</h2>
-      <p>The video below records 901 continuous frames at 60 FPS, demonstrating stage boot, movement input, Goomba spawner activation with ID <code>$85</code>, and continuous rainbow palette cycling executed live by the payload:</p>
-
-      <div class="video-wrapper">
-        <div class="video-container">
-          <video controls autoplay loop muted playsinline poster="assets/03_after_ace_rainbow.png">
-            <source src="assets/ace_gameplay_victory.mp4" type="video/mp4">
-            <img src="assets/ace_gameplay_victory.gif" alt="Continuous live Instant Victory ACE gameplay demonstration">
-          </video>
-        </div>
-        <div class="video-caption">
-          🎬 Live 60 FPS Instant Game Completion &amp; Princess Cutscene trigger captured inside MesenCE (15.0s continuous sequence).
-        </div>
+      <div class="math-box" style="text-align: left; padding: 18px 24px;">
+        <strong>Scope &amp; Claim Scoping:</strong><br>
+        This research characterizes a <em>control-flow primitive</em> (direct PC redirection to RAM <code>$03D0</code>). In our test harness, 6502 machine code is loaded into <code>$03D0</code> via memory injection to demonstrate execution landing. Developing a 100% in-game payload construction route without harness injection remains an open area of data-flow analysis.
       </div>
 
-      <!-- Core Vulnerability -->
-      <h2 id="vulnerability">Disambiguating JumpEngine: The $C891 Discovery</h2>
-      <p>In SMB1, enemy behavior dispatches are handled by <code>RunEnemyObjectsCore</code> at <code>$C882</code>:</p>
+      <!-- Execution Trace Section -->
+      <h2 id="trace">Empirical 6502 Execution Trace</h2>
+      <p>The SMB1 enemy object dispatcher is handled by <code>RunEnemyObjectsCore</code> at <code>$C882</code>:</p>
 
       <div class="code-block">
         <div class="code-header">
@@ -99,13 +90,13 @@ LDY Enemy_ID,x
 CPY #$15
 BCC JmpEO          ; IDs < $15 use index 0 -> RunNormalEnemies
 TYA
-SBC #$14           ; IDs >= $15 use index = Enemy_ID - $14
+SBC #$14           ; IDs >= $15 compute index = Enemy_ID - $14
 JmpEO:
-JSR $8E04          ; JumpEngine</code></pre>
+JSR $8E04          ; Call JumpEngine</code></pre>
         </div>
       </div>
 
-      <p>The core vulnerability relies on how <code>JumpEngine</code> at <code>$8E04</code> parses return addresses from the MOS 6502 stack:</p>
+      <p>When <code>JSR $8E04</code> executes, the 6502 CPU pushes \(\text{JSR\_address} + 2\) (address <code>$C891</code>) onto the call stack. The <code>JumpEngine</code> routine at <code>$8E04</code> pulls this return pointer directly off the stack to use as its table base:</p>
 
       <div class="code-block">
         <div class="code-header">
@@ -115,23 +106,42 @@ JSR $8E04          ; JumpEngine</code></pre>
         <div class="code-content">
           <pre><code>ASL          ; A = index * 2
 TAY
-PLA / STA $04
-PLA / STA $05
-INY / LDA ($04),y -> $06
-INY / LDA ($04),y -> $07
-JMP ($0006)</code></pre>
+PLA / STA $04; Pull low byte of pushed JSR return address ($91)
+PLA / STA $05; Pull high byte of pushed JSR return address ($C8)
+INY / LDA ($04),y -> $06 ; Read target low byte from ($C891 + Y + 1)
+INY / LDA ($04),y -> $07 ; Read target high byte from ($C891 + Y + 2)
+JMP ($0006)  ; Indirect jump to target address</code></pre>
         </div>
       </div>
 
-      <p>On the 6502 CPU, <code>JSR</code> pushes <code>JSR_address + 2</code> to the call stack—specifically pointing to the address of the <em>high operand byte</em>. Standard ROM disassemblers label the jump table starting at <code>$C892</code>. However, because <code>JumpEngine</code> pulls the pushed return address directly, its effective base address is <strong><code>$C891</code></strong> (one byte earlier).</p>
+      <p>Because disassemblers label the table after the <code>JSR</code> instruction at <code>$C892</code>, the 1-byte discrepancy between the pushed stack pointer (<code>$C891</code>) and the disassembler label creates an effective offset base of <code>$C891</code>. For Enemy ID <code>$85</code> (133 decimal):</p>
 
-      <div class="math-box">
-        $$\text{target} = \text{ROM16}\left[ \text{\$C891} + 2 \times \text{index} + 1 \right] \pmod{256}$$
+      <div class="code-block">
+        <div class="code-header">
+          <span>Step-by-Step CPU Register &amp; Memory State Trace</span>
+          <button class="btn-copy">Copy</button>
+        </div>
+        <div class="code-content">
+          <pre><code>1.  Enemy_ID,x           = $85        (133 decimal)
+2.  A = $85 - $14        = $71        (113 decimal)
+3.  ASL -> A             = $E2        (226 decimal)
+4.  Y = $E2
+5.  Stack Return Pointer = $C891      (Pushed by JSR $8E04)
+6.  Table Pointer Low    = ($C891) + Y + 1 = $C891 + 227 = $C974
+7.  ROM Byte @ $C974     = $D0        (Read into RAM $0006)
+8.  ROM Byte @ $C975     = $03        (Read into RAM $0007)
+9.  Indirect Target      = [$0006/$0007] = $03D0
+10. Execution Landing    = PC -> $03D0 (NES Internal RAM!)</code></pre>
+        </div>
       </div>
 
-      <!-- Bowser Trigger Math -->
-      <h2>World 75 Bowser Fireball Trigger</h2>
-      <p>In an unpatched ROM playthrough, Enemy ID <code>$85</code> is generated naturally through the <code>HurtBowser</code> routine (<code>$D76D</code>):</p>
+      <div class="math-box">
+        $$\text{Target Pointer} = \text{ROM16}\left[ \$C891 + 2 \times (\text{Enemy\_ID} - \$14) + 1 \right] = \text{ROM16}[\$C974] = \text{RAM } \$03D0$$
+      </div>
+
+      <!-- Out of Bounds Bowser Table -->
+      <h2>Bowser Table OOB State Analysis</h2>
+      <p>In SMB1 ROM, Enemy ID <code>$85</code> is referenced inside the <code>HurtBowser</code> routine (<code>$D76D</code>):</p>
 
       <div class="code-block">
         <div class="code-header">
@@ -140,93 +150,107 @@ JMP ($0006)</code></pre>
         </div>
         <div class="code-content">
           <pre><code>LDY WorldNumber
-LDA $D736,y        ; Read from BowserIdentities table
+LDA $D736,y        ; Read from BowserIdentities table (8 bytes)
 STA Enemy_ID,x</code></pre>
         </div>
       </div>
 
-      <p>The <code>BowserIdentities</code> array is 8 bytes long (located at <code>$D736</code>). When <code>WorldNumber &ge; 8</code>, the index reads out-of-bounds into adjacent ROM code bytes. For <strong>World 75 (<code>$4B</code>)</strong>:</p>
+      <p>The <code>BowserIdentities</code> table at <code>$D736</code> is 8 bytes long (indexed by <code>WorldNumber</code> 0–7). When the game state enters an out-of-bounds world index (\(\text{WorldNumber} \ge 8\)), the table read overflows into adjacent ROM code. Specifically, for <strong>World 75 (<code>$4B</code>)</strong>:</p>
 
       <div class="math-box">
-        $$\text{\$D736} + \text{\$4B} = \text{\$D781} \longrightarrow \text{ROM Value } \text{\$85}$$
+        $$\text{ROM Address } \$D736 + \$4B = \$D781 \longrightarrow \text{ROM Value } \text{\$85}$$
       </div>
 
-      <p>Defeating Bowser with fireballs in World 75 assigns Enemy ID <code>$85</code> to the active slot, causing the subsequent per-frame dispatch to immediately execute 6502 machine code located at NES RAM <code>$03D0</code>.</p>
+      <p><em>Note on World 75:</em> Reaching World 75 requires memory state manipulation (such as memory corruption or sub-routine address jumps), similar to invalid world setups in prior TAS research.</p>
 
-      <!-- Payload Section -->
-      <h2 id="payload">Instant Victory Game Completion Payload (18 Bytes)</h2>
-      <p>Instead of merely altering PPU palette memory or player invincibility timers, the injected 18-byte 6502 assembly payload immediately shifts the game engine into victory mode and forces the Princess end-game cutscene and credits sequence on the exact frame of dispatch:</p>
+      <!-- Primitive Comparison -->
+      <h2 id="comparison">Control-Flow Primitive Comparison</h2>
+      <p>Comparing this single-step control-flow primitive against the published SMB1 TAS ACE route (*TASVideos #8991S*):</p>
 
-      <div class="code-block">
-        <div class="code-header">
-          <span>6502 Assembly — Instant Victory & Princess Cutscene Routine</span>
-          <button class="btn-copy">Copy</button>
-        </div>
-        <div class="code-content">
-          <pre><code>; 1. Set Game Engine to Victory / Ending Mode
-LDA #$02
-STA $0770        ; OperatingMode = $02 (Victory Mode)
-
-; 2. Trigger World End Sequence Task
-LDA #$01
-STA $071B        ; WorldEndRoutineTask = 1 (Triggers Princess Cutscene)
-
-; 3. Assert Diagnostic Marker Byte
-LDA #$85
-STA $07FF        ; Marker assertion = $85
-
-; 4. Jump Directly to SMB1 Victory Dispatch Routine
-JMP $E525        ; Jump to SMB1 End Game Engine ($E525)</code></pre>
-        </div>
-      </div>
-
-      <!-- Vector Comparison Section -->
-      <h2 id="comparison">Vector Comparison</h2>
-      <p>Comparing this direct single-step vector against prior published SMB1 ACE runs:</p>
-
-      <!-- Vector Comparison Diagram Card -->
       <figure class="image-card">
         <div class="image-container">
           <img src="assets/vector_comparison_diagram.png" alt="Exploit Vector Comparison Infographic Diagram">
         </div>
         <figcaption class="image-caption">
-          Figure 2: Infographic comparison of legacy multi-stage TAS ACE exploits versus our direct single-step RAM jump primitive.
+          Figure 2: Architectural comparison of the published multi-stage TAS ACE vector versus the direct $85 \rightarrow \$03D0$ RAM jump primitive.
         </figcaption>
       </figure>
 
-      <!-- Host Security -->
-      <h2>Host-Side Security Findings in MesenCE</h2>
-      <p>During harness validation under AddressSanitizer (ASAN), two host-side vulnerability vectors were also identified within MesenCE core loaders:</p>
+      <table class="code-block" style="width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 14px;">
+        <thead>
+          <tr style="background: #161616; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left;">
+            <th style="padding: 12px 16px; color: #FFFFFF;">Metric / Feature</th>
+            <th style="padding: 12px 16px; color: #F87171;">Legacy Published Vector (2024)</th>
+            <th style="padding: 12px 16px; color: #34D399;">This Finding ($85 \rightarrow \$03D0$)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 12px 16px; font-weight: 600;">Control-Flow Entry</td>
+            <td style="padding: 12px 16px; font-family: var(--font-mono);">Enemy ID $C9</td>
+            <td style="padding: 12px 16px; font-family: var(--font-mono); color: #34D399;">Enemy ID $85</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 12px 16px; font-weight: 600;">Execution Path</td>
+            <td style="padding: 12px 16px;">Multi-stage (Level Loader \(\rightarrow\) Mode 4 \(\rightarrow\) Open-bus \(\rightarrow\) RTI)</td>
+            <td style="padding: 12px 16px; color: #34D399;">Single-step direct JumpEngine dispatch</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 12px 16px; font-weight: 600;">Target Landing RAM</td>
+            <td style="padding: 12px 16px; font-family: var(--font-mono);">$0181 (Stack/RAM)</td>
+            <td style="padding: 12px 16px; font-family: var(--font-mono); color: #34D399;">$03D0 (NES Internal RAM)</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 12px 16px; font-weight: 600;">Open-Bus / Unofficial Opcodes</td>
+            <td style="padding: 12px 16px;">Required (Open-bus fetch + RTI)</td>
+            <td style="padding: 12px 16px; color: #34D399;">None (Standard 6502 JMP indirect)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Data Flow Section -->
+      <h2 id="dataflow">NES RAM $03D0 Data-Flow &amp; Payload Feasibility</h2>
+      <p>To evaluate whether RAM <code>$03D0</code> can be populated natively without harness injection, we analyzed the memory usage of NES RAM range <code>$0300–$03FF</code>:</p>
+
       <ul>
-        <li><strong>NSFE Loader Stack Buffer Overflow:</strong> <code>Core/NES/Loaders/NsfeLoader.h</code> parses <code>time</code>/<code>fade</code> chunks with an unbounded index loop targeting <code>NsfHeader::TrackLength[256]</code>, enabling a crafted NSFE file to overwrite adjacent stack memory in <code>NesConsole::LoadRom</code>. (PoC: <code>fuzz/poc_time_overwrite.nsfe</code>).</li>
-        <li><strong>VS System Mapper Array OOB Read:</strong> <code>Core/NES/Mappers/VsSystem.h:68</code> performs a C-style cast that mis-sizes array bounds during mapper 99 reads.</li>
+        <li><strong>PPU OAM Sprite Buffer (<code>$0300–$03FF</code>):</strong> In SMB1, this 256-byte RAM page is dedicated to the OAM (Object Attribute Memory) shadow buffer, which is DMA-copied to PPU OAM during vertical blanking every frame.</li>
+        <li><strong>Byte Structure per Sprite:</strong> Each 4-byte sprite entry in the buffer consists of:
+          <ol>
+            <li>Byte 0: Y-Position (Vertical coordinate)</li>
+            <li>Byte 1: Tile Index (PPU Pattern Table index)</li>
+            <li>Byte 2: Attributes (Palette, Flip, Priority)</li>
+            <li>Byte 3: X-Position (Horizontal coordinate)</li>
+          </ol>
+        </li>
+        <li><strong>Payload Mapping Potential:</strong> Address <code>$03D0</code> corresponds to Sprite Offset 52 (Sprite #13). Because tile indices and X/Y coordinates of active sprites are directly influenced by object positions and player movement, specific 6502 instruction opcodes (such as <code>LDA</code>, <code>STA</code>, <code>JMP</code>) map to valid PPU coordinate and tile values.</li>
       </ul>
 
-      <!-- C++20 Architecture -->
-      <h2>Modern C++20 Harness Engine Architecture</h2>
-      <p>The research harness engine has been refactored into a modern, RAII-compliant object-oriented C++20 codebase:</p>
+      <!-- Host Vulnerabilities Appendix -->
+      <h2 id="appendix">Appendix: Host-Side Emulator Vulnerabilities</h2>
+      <p>During the development of our security research harness, static and dynamic analysis under AddressSanitizer (ASAN) uncovered two host-side vulnerability vectors in the MesenCE core emulator codebase:</p>
 
       <div class="code-block">
         <div class="code-header">
-          <span>C++20 — AceHarness.hpp Engine Orchestrator</span>
+          <span>1. NSFE Loader Stack Buffer Overflow (Core/NES/Loaders/NsfeLoader.h)</span>
           <button class="btn-copy">Copy</button>
         </div>
         <div class="code-content">
-          <pre><code>namespace mesen::ace {
+          <pre><code>// Vulnerability: Unbounded track loop overwriting NsfHeader::TrackLength[256]
+// Location: Core/NES/Loaders/NsfeLoader.h
+// Impact: Crafted NSFE files overwrite adjacent stack frame memory in NesConsole::LoadRom.
+// PoC File: fuzz/poc_time_overwrite.nsfe</code></pre>
+        </div>
+      </div>
 
-class AceHarness {
-public:
-    explicit AceHarness(std::filesystem::path rom_path);
-    ~AceHarness();
-
-    bool initialize();
-    void inject_vector_and_payload(const Payload6502& payload);
-    bool advance_to_gameplay();
-    ExecutionResult run_verification();
-    void shutdown();
-};
-
-} // namespace mesen::ace</code></pre>
+      <div class="code-block">
+        <div class="code-header">
+          <span>2. VS System Control Manager C-Style Cast OOB Read (Core/NES/Mappers/VsSystem/VsSystem.h)</span>
+          <button class="btn-copy">Copy</button>
+        </div>
+        <div class="code-content">
+          <pre><code>// Vulnerability: Improper C-style pointer cast on ControlManager instance
+// Location: Core/NES/Mappers/VsSystem/VsSystem.h:86
+// Fix Applied: Replaced unsafe C-style cast with dynamic_pointer_cast safety check.</code></pre>
         </div>
       </div>
 
@@ -236,7 +260,7 @@ public:
   <!-- Site Footer -->
   <footer class="site-footer">
     <div class="footer-container">
-      <div>© 2026 Security & Emulation Research. Target MesenCE Commit <code>ad0a1b98</code></div>
+      <div>© 2026 Security &amp; Emulation Research Team. Target MesenCE Commit <code>ad0a1b98</code></div>
       <div><a href="https://github.com/astelmach20/mesen-ce-ace-research" style="color: inherit;" target="_blank">GitHub Repository</a></div>
     </div>
   </footer>
