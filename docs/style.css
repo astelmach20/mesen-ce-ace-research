@@ -218,6 +218,7 @@ body {
   height: auto;
   display: block;
   border-radius: 8px;
+  image-rendering: -webkit-optimize-contrast;
 }
 
 .image-caption {
