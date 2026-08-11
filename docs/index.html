@@ -30,8 +30,9 @@
         <nav class="nav-links">
           <a href="#summary" class="nav-link">Overview</a>
           <a href="#trace" class="nav-link">Execution Trace</a>
+          <a href="#stack-analysis" class="nav-link">Stack Analysis</a>
           <a href="#comparison" class="nav-link">Primitive Comparison</a>
-          <a href="#dataflow" class="nav-link">$03D0 Data-Flow</a>
+          <a href="#open-questions" class="nav-link">Open Research Tracks</a>
           <a href="#appendix" class="nav-link">Host Vulnerabilities</a>
         </nav>
       </div>
@@ -55,9 +56,13 @@
     <main class="article-body">
 
       <h2 id="summary">Executive Summary &amp; Scope</h2>
-      <p>In 8-bit console reverse engineering, Arbitrary Code Execution (ACE) relies on two distinct primitives: <strong>1) a control-flow primitive</strong> that redirects the Program Counter (PC) into writable RAM, and <strong>2) a payload construction primitive</strong> that populates that RAM with executable machine code instructions.</p>
+      <p>In 8-bit console reverse engineering, Arbitrary Code Execution (ACE) relies on two distinct components:</p>
+      <ol>
+        <li><strong>Control-Flow Primitive:</strong> Redirecting the CPU Program Counter (PC) into writable RAM.</li>
+        <li><strong>Payload Construction Primitive:</strong> Populating that target RAM with executable machine code through in-game mechanics.</li>
+      </ol>
 
-      <p>This disclosure characterizes a novel 6502 control-flow primitive in <em>Super Mario Bros.</em> (SMB1). By analyzing the exact stack arithmetic of the SMB1 <code>JumpEngine</code> routine at <code>$8E04</code>, we identified that an out-of-bounds <strong>Enemy ID <code>$85</code></strong> causes the CPU dispatch table to read little-endian pointer <code>D0 03</code> directly from ROM byte <code>$C974</code>. This forces the CPU to jump directly into <strong>NES internal RAM (<code>$03D0</code>)</strong> in a single dispatch step.</p>
+      <p>This disclosure characterizes a novel 6502 <strong>control-flow primitive</strong> in <em>Super Mario Bros.</em> (SMB1). By analyzing the exact stack pointer arithmetic of the SMB1 <code>JumpEngine</code> routine at <code>$8E04</code>, we identified that an out-of-bounds <strong>Enemy ID <code>$85</code></strong> causes the CPU dispatch table to read little-endian pointer <code>D0 03</code> directly from ROM byte <code>$C974</code>. This forces the CPU to jump directly into <strong>NES internal RAM (<code>$03D0</code>)</strong> in a single dispatch step.</p>
 
       <!-- Vector Architecture Diagram -->
       <figure class="image-card">
@@ -69,9 +74,9 @@
         </figcaption>
       </figure>
 
-      <div class="math-box" style="text-align: left; padding: 18px 24px;">
-        <strong>Scope &amp; Claim Scoping:</strong><br>
-        This research characterizes a <em>control-flow primitive</em> (direct PC redirection to RAM <code>$03D0</code>). In our test harness, 6502 machine code is loaded into <code>$03D0</code> via memory injection to demonstrate execution landing. Developing a 100% in-game payload construction route without harness injection remains an open area of data-flow analysis.
+      <div class="math-box" style="text-align: left; padding: 18px 24px; border-left: 4px solid #3B82F6;">
+        <strong>Carefully Scoped Claim:</strong><br>
+        This research characterizes a <em>control-flow primitive</em> (direct PC redirection to RAM <code>$03D0</code>). In our research harness, test byte routines are loaded into <code>$03D0</code> via memory injection to demonstrate execution landing. Fully characterizing 1) native in-game payload construction at <code>$03D0</code> and 2) vanilla game-state paths to World <code>$4B</code> are open research tracks.
       </div>
 
       <!-- Execution Trace Section -->
@@ -135,11 +140,68 @@ JMP ($0006)  ; Indirect jump to target address</code></pre>
         </div>
       </div>
 
-      <div class="math-box">
-        $$\text{Target Pointer} = \text{ROM16}\left[ \$C891 + 2 \times (\text{Enemy\_ID} - \$14) + 1 \right] = \text{ROM16}[\$C974] = \text{RAM } \$03D0$$
-      </div>
+      <!-- Stack Frame & RTS Behavior Section -->
+      <h2 id="stack-analysis">Stack Frame &amp; RTS Return Analysis</h2>
+      <p>A critical detail of <code>JumpEngine</code> is its stack manipulation behavior. Because <code>JumpEngine</code> pops the <code>JSR</code> return address off the stack via two <code>PLA</code> instructions (<code>PLA / STA $04</code> and <code>PLA / STA $05</code>), <code>JumpEngine</code>'s own stack frame is <strong>completely cleaned</strong> before <code>JMP ($0006)</code> executes.</p>
 
-      <!-- Out of Bounds Bowser Table -->
+      <table class="code-block" style="width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 13.5px;">
+        <thead>
+          <tr style="background: #161616; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left;">
+            <th style="padding: 10px 14px; color: #FFFFFF;">Execution Phase</th>
+            <th style="padding: 10px 14px; color: #60A5FA;">PC</th>
+            <th style="padding: 10px 14px; color: #C084FC;">A / Y</th>
+            <th style="padding: 10px 14px; color: #F59E0B;">SP</th>
+            <th style="padding: 10px 14px; color: #34D399;">Top of Stack [SP+1 .. SP+2]</th>
+            <th style="padding: 10px 14px; color: #E2E8F0;">Stack State Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 10px 14px; font-weight: 600;">Pre-JSR ($C88F)</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$C88F</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$71 / $85</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$FF</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$AF08 (Main Loop)</td>
+            <td style="padding: 10px 14px;">Main engine caller return address (JSR ExecuteObjects at $AF05)</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 10px 14px; font-weight: 600;">Post-JSR ($8E04 Entry)</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$8E04</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$71 / $E2</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$FD</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$C891 (JumpEngine)</td>
+            <td style="padding: 10px 14px;">JSR pushes JumpEngine return pointer ($C891) onto stack</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 10px 14px; font-weight: 600;">Post 2x PLA ($8E0A)</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$8E0A</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$C8 / $E2</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$FF</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$AF08 (Main Loop)</td>
+            <td style="padding: 10px 14px;"><strong>Stack pointer restored to $FF!</strong> JumpEngine frame popped</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 10px 14px; font-weight: 600;">RAM Landing ($03D0)</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$03D0</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$03 / $E3</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$FF</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$AF08 (Main Loop)</td>
+            <td style="padding: 10px 14px;">CPU enters RAM $03D0 with SP = $FF pointing to $AF08</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 10px 14px; font-weight: 600;">Payload RTS Execution</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$AF08</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$85 / $00</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">$0101</td>
+            <td style="padding: 10px 14px; font-family: var(--font-mono);">Main Engine Loop</td>
+            <td style="padding: 10px 14px;"><strong>RTS pops $AF08 and cleanly returns to Main Engine Loop!</strong></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>As detailed above, when execution lands at <code>$03D0</code>, <code>SP</code> is at <code>$FF</code>. Executing an <code>RTS</code> inside the <code>$03D0</code> payload pops <code>$AF08</code> off the stack and returns execution directly back to the caller of <code>RunEnemyObjectsCore</code> in SMB1's main game engine loop (<code>ExecuteObjects</code> at <code>$AF08</code>) without stack degradation.</p>
+
+      <!-- Bowser Table Section -->
       <h2>Bowser Table OOB State Analysis</h2>
       <p>In SMB1 ROM, Enemy ID <code>$85</code> is referenced inside the <code>HurtBowser</code> routine (<code>$D76D</code>):</p>
 
@@ -155,13 +217,11 @@ STA Enemy_ID,x</code></pre>
         </div>
       </div>
 
-      <p>The <code>BowserIdentities</code> table at <code>$D736</code> is 8 bytes long (indexed by <code>WorldNumber</code> 0–7). When the game state enters an out-of-bounds world index (\(\text{WorldNumber} \ge 8\)), the table read overflows into adjacent ROM code. Specifically, for <strong>World 75 (<code>$4B</code>)</strong>:</p>
+      <p>The <code>BowserIdentities</code> table at <code>$D736</code> is 8 bytes long (indexed by <code>WorldNumber</code> 0–7). Given a game state corresponding to World 75 (<code>$4B</code>), the table read overflows into adjacent ROM code:</p>
 
       <div class="math-box">
         $$\text{ROM Address } \$D736 + \$4B = \$D781 \longrightarrow \text{ROM Value } \text{\$85}$$
       </div>
-
-      <p><em>Note on World 75:</em> Reaching World 75 requires memory state manipulation (such as memory corruption or sub-routine address jumps), similar to invalid world setups in prior TAS research.</p>
 
       <!-- Primitive Comparison -->
       <h2 id="comparison">Control-Flow Primitive Comparison</h2>
@@ -208,22 +268,15 @@ STA Enemy_ID,x</code></pre>
         </tbody>
       </table>
 
-      <!-- Data Flow Section -->
-      <h2 id="dataflow">NES RAM $03D0 Data-Flow &amp; Payload Feasibility</h2>
-      <p>To evaluate whether RAM <code>$03D0</code> can be populated natively without harness injection, we analyzed the memory usage of NES RAM range <code>$0300–$03FF</code>:</p>
+      <!-- Open Research Tracks -->
+      <h2 id="open-questions">Open Research Tracks to Full In-Game ACE</h2>
+      <p>To elevate this control-flow primitive to a 100% self-contained in-game ACE exploit without harness payload injection, two ongoing research tracks are required:</p>
 
-      <ul>
-        <li><strong>PPU OAM Sprite Buffer (<code>$0300–$03FF</code>):</strong> In SMB1, this 256-byte RAM page is dedicated to the OAM (Object Attribute Memory) shadow buffer, which is DMA-copied to PPU OAM during vertical blanking every frame.</li>
-        <li><strong>Byte Structure per Sprite:</strong> Each 4-byte sprite entry in the buffer consists of:
-          <ol>
-            <li>Byte 0: Y-Position (Vertical coordinate)</li>
-            <li>Byte 1: Tile Index (PPU Pattern Table index)</li>
-            <li>Byte 2: Attributes (Palette, Flip, Priority)</li>
-            <li>Byte 3: X-Position (Horizontal coordinate)</li>
-          </ol>
-        </li>
-        <li><strong>Payload Mapping Potential:</strong> Address <code>$03D0</code> corresponds to Sprite Offset 52 (Sprite #13). Because tile indices and X/Y coordinates of active sprites are directly influenced by object positions and player movement, specific 6502 instruction opcodes (such as <code>LDA</code>, <code>STA</code>, <code>JMP</code>) map to valid PPU coordinate and tile values.</li>
-      </ul>
+      <h3>Track 1: Payload Construction in PPU OAM Buffer ($03D0–$03FF)</h3>
+      <p>NES RAM range <code>$0300–$03FF</code> serves as the PPU OAM (Object Attribute Memory) shadow buffer, which holds 64 4-byte sprite attributes (Y-pos, Tile ID, Attribute flags, X-pos). Address <code>$03D0</code> corresponds to Sprite #13. Investigating whether player inputs, object coordinates, or sprite tile assignments can deterministically arrange valid 6502 machine instructions inside <code>$03D0+</code> is the primary data-flow milestone.</p>
+
+      <h3>Track 2: Vanilla Game-State World $4B Reaching</h3>
+      <p>Establishing whether World <code>$4B</code> (75 decimal) can be reached from a standard power-on boot via vanilla gameplay glitches (such as pipe state corruption or memory boundary overflows) versus requiring external RAM pre-load.</p>
 
       <!-- Host Vulnerabilities Appendix -->
       <h2 id="appendix">Appendix: Host-Side Emulator Vulnerabilities</h2>

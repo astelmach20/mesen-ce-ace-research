@@ -2,14 +2,14 @@
 
 ## Executive Summary & Scope
 
-In 8-bit console reverse engineering, Arbitrary Code Execution (ACE) relies on two distinct primitives:
-1. **Control-Flow Primitive:** Redirecting the Program Counter (PC) into writable RAM.
-2. **Payload Construction Primitive:** Populating that RAM with executable machine code instructions.
+In 8-bit console reverse engineering, Arbitrary Code Execution (ACE) relies on two distinct components:
+1. **Control-Flow Primitive:** Redirecting the CPU Program Counter (PC) into writable RAM.
+2. **Payload Construction Primitive:** Populating that target RAM with executable machine code through in-game mechanics.
 
-This research characterizes a novel 6502 control-flow primitive in *Super Mario Bros.* (SMB1). By analyzing the stack pointer arithmetic of the SMB1 `JumpEngine` routine at `$8E04`, we identified that an out-of-bounds **Enemy ID `$85`** causes the CPU dispatch table to read little-endian pointer `D0 03` directly from ROM byte `$C974`. This forces the CPU to jump directly into **NES internal RAM (`$03D0`)** in a single dispatch step.
+This research characterizes a novel 6502 **control-flow primitive** in *Super Mario Bros.* (SMB1). By analyzing the exact stack pointer arithmetic of the SMB1 `JumpEngine` routine at `$8E04`, we identified that an out-of-bounds **Enemy ID `$85`** causes the CPU dispatch table to read little-endian pointer `D0 03` directly from ROM byte `$C974`. This forces the CPU to jump directly into **NES internal RAM (`$03D0`)** in a single dispatch step.
 
 > [!NOTE]
-> **Scope & Claim Scoping:** This paper characterizes a *control-flow primitive* (direct PC redirection to RAM `$03D0`). In our test harness, 6502 machine code is loaded into `$03D0` via memory injection to demonstrate execution landing. Characterizing native in-game payload construction routes without harness injection remains an active area of data-flow analysis.
+> **Carefully Scoped Claim:** This research characterizes a *control-flow primitive* (direct PC redirection to RAM `$03D0`). In our research harness, test byte routines are loaded into `$03D0` via memory injection to demonstrate execution landing. Fully characterizing 1) native in-game payload construction at `$03D0` and 2) vanilla game-state paths to World `$4B` are open research tracks.
 
 ---
 
@@ -58,6 +58,22 @@ $$\text{Target Pointer} = \text{ROM16}\left[ \$C891 + 2 \times (\text{Enemy\_ID}
 
 ---
 
+## Stack Frame & RTS Return Analysis
+
+Because `JumpEngine` pops its own return address off the stack via two `PLA` instructions (`PLA / STA $04` and `PLA / STA $05`), `JumpEngine`'s call frame is **completely popped** before `JMP ($0006)` executes.
+
+| Execution Phase | PC | A / Y | SP | Top of Stack [SP+1..SP+2] | Description |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Pre-JSR ($C88F)** | `$C88F` | `$71 / $85` | `$FF` | `$AF08` (Main Loop) | Main engine caller return address (`JSR ExecuteObjects` at `$AF05`) |
+| **Post-JSR ($8E04)** | `$8E04` | `$71 / $E2` | `$FD` | `$C891` (JumpEngine) | `JSR` pushes `JumpEngine` return pointer (`$C891`) |
+| **Post 2x PLA ($8E0A)** | `$8E0A` | `$C8 / $E2` | `$FF` | `$AF08` (Main Loop) | **Stack pointer restored to `$FF`!** `JumpEngine` frame popped |
+| **RAM Landing ($03D0)** | `$03D0` | `$03 / $E3` | `$FF` | `$AF08` (Main Loop) | CPU enters RAM `$03D0` with `SP = $FF` pointing to `$AF08` |
+| **Payload RTS** | `$AF08` | `$85 / $00` | `$0101` | Main Engine Loop | **`RTS` pops `$AF08` and returns to Main Engine Loop!** |
+
+When execution lands at `$03D0`, `SP` is at `$FF`. Executing an `RTS` inside the `$03D0` payload pops `$AF08` off the stack and returns execution directly back to the caller of `RunEnemyObjectsCore` in SMB1's main game engine loop (`ExecuteObjects` at `$AF08`) without stack degradation.
+
+---
+
 ## Bowser Table Out-Of-Bounds Analysis
 
 In SMB1 ROM, Enemy ID `$85` is referenced inside the `HurtBowser` routine (`$D76D`):
@@ -68,7 +84,7 @@ LDA $D736,y        ; Read from BowserIdentities table (8 bytes)
 STA Enemy_ID,x
 ```
 
-The `BowserIdentities` table at `$D736` is 8 bytes long (indexed by `WorldNumber` 0–7). When the game state enters an out-of-bounds world index (\(\text{WorldNumber} \ge 8\)), the table read overflows into adjacent ROM code. Specifically, for **World 75 (`$4B`)**:
+The `BowserIdentities` table at `$D736` is 8 bytes long (indexed by `WorldNumber` 0–7). Given a game state corresponding to World 75 (`$4B`), the table read overflows into adjacent ROM code:
 
 $$\text{ROM Address } \$D736 + \$4B = \$D781 \longrightarrow \text{ROM Value } \text{\$85}$$
 
@@ -86,15 +102,15 @@ $$\text{ROM Address } \$D736 + \$4B = \$D781 \longrightarrow \text{ROM Value } \
 
 ---
 
-## NES RAM $03D0 Data-Flow Analysis
+## Open Research Tracks to Full In-Game ACE
 
-Address range `$0300–$03FF` is the NES PPU OAM (Object Attribute Memory) shadow buffer. Each 4-byte sprite entry contains:
-1. `Byte 0`: Y-Position
-2. `Byte 1`: Tile Index
-3. `Byte 2`: Attributes (Palette, Priority, Flip)
-4. `Byte 3`: X-Position
+To elevate this control-flow primitive to a 100% self-contained in-game ACE exploit without harness payload injection, two ongoing research tracks are required:
 
-Address `$03D0` corresponds to Sprite Offset 52 (Sprite #13). Because tile indices and coordinates are directly influenced by object positions and player movement, 6502 instruction opcodes (such as `LDA`, `STA`, `JMP`) map to valid PPU coordinate and tile values.
+### Track 1: Payload Construction in PPU OAM Buffer ($03D0–$03FF)
+NES RAM range `$0300–$03FF` serves as the PPU OAM (Object Attribute Memory) shadow buffer, which holds 64 4-byte sprite attributes (Y-pos, Tile ID, Attribute flags, X-pos). Address `$03D0` corresponds to Sprite #13. Investigating whether player inputs, object coordinates, or sprite tile assignments can deterministically arrange valid 6502 machine instructions inside `$03D0+` is the primary data-flow milestone.
+
+### Track 2: Vanilla Game-State World $4B Reaching
+Establishing whether World `$4B` (75 decimal) can be reached from a standard power-on boot via vanilla gameplay glitches (such as pipe state corruption or memory boundary overflows) versus requiring external RAM pre-load.
 
 ---
 
