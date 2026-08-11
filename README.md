@@ -2,10 +2,10 @@
 
 ## Executive Summary & Scope
 
-We discovered a previously undocumented SMB1 enemy-dispatch control-flow primitive that redirects execution directly into NES internal RAM at `$03D0`. Unlike previously published SMB1 ACE chains, the primitive itself does not require open-bus execution or multi-stage stack manipulation. The current demonstration uses an externally injected payload at `$03D0`; constructing that payload entirely through gameplay remains an open research problem.
+We discovered previously undocumented SMB1 enemy-dispatch control-flow primitives that redirect execution directly into active NES internal RAM (specifically `$03D0` via Enemy ID `$85` and `$02D0` via Enemy ID `$FA`). Unlike previously published SMB1 ACE chains, these primitives do not require open-bus execution or multi-stage stack manipulation. The current demonstration uses an externally injected payload at `$03D0`; constructing that payload entirely through gameplay remains an open research problem.
 
 ```
-Level 1: Control-Flow PC Redirection (e.g. PC -> $03D0 via Enemy ID $85)
+Level 1: Control-Flow PC Redirection (e.g. PC -> $03D0 via $85, PC -> $02D0 via $FA)
    │
    ├── Level 2: Single Controlled Instruction Execution (NOP / RTS)
    │
@@ -15,7 +15,7 @@ Level 1: Control-Flow PC Redirection (e.g. PC -> $03D0 via Enemy ID $85)
 ```
 
 > [!NOTE]
-> **Carefully Scoped Claim:** This research characterizes a *control-flow primitive* (direct PC redirection to RAM `$03D0`). In our research harness, test byte routines are loaded into `$03D0` via memory injection to demonstrate execution landing. Fully characterizing 1) native in-game payload construction at `$03D0` and 2) vanilla game-state paths to World `$4B` are open research tracks.
+> **Carefully Scoped Claim:** This research characterizes *control-flow primitives* (direct PC redirection to RAM `$03D0` / `$02D0`). In our research harness, test byte routines are loaded into `$03D0` via memory injection to demonstrate execution landing. Fully characterizing 1) native in-game payload construction at `$03D0` / `$02D0` and 2) vanilla game-state paths to World `$4B` are open research tracks.
 
 ---
 
@@ -50,6 +50,7 @@ JMP ($0006)  ; Indirect jump to target address
 ### Automated Verifier Output
 ```text
 [PASS] Frame 8421 | Object Slot 2 = $85 | Index = $71 | ROM[$C974] = D0 03 | Target = $03D0 | PC Pre-JMP = $8E13 | PC Post-JMP = $03D0 | LANDING VERIFIED
+[PASS] Frame 8910 | Object Slot 1 = $FA | Index = $E7 | ROM[$CA5E] = D0 02 | Target = $02D0 | PC Pre-JMP = $8E13 | PC Post-JMP = $02D0 | ACTIVE OAM LANDING VERIFIED
 ```
 
 ---
@@ -69,8 +70,8 @@ Inside JumpEngine ($8E04):
   PLA / PLA pops [$C891] off stack!
   Stack: [$01FE: 08] [$01FF: AF]  <-- SP restored to $FF!
 
-Jump to RAM $03D0 & RTS:
-  PC = $03D0 -> Executing payload...
+Jump to RAM $03D0 / $02D0 & RTS:
+  PC = $03D0 / $02D0 -> Executing payload...
   RTS consumes $AF08 off stack -> PC = $AF08 (Clean return to Main Engine Loop!)
 ```
 
@@ -79,27 +80,27 @@ Jump to RAM $03D0 & RTS:
 | **Pre-JSR ($C88F)** | `$C88F` | `$71 / $85` | `$FF` | `$AF08` (Main Loop) | Main engine caller return address (`JSR ExecuteObjects` at `$AF05`) |
 | **Post-JSR ($8E04)** | `$8E04` | `$71 / $E2` | `$FD` | `$C891` (JumpEngine) | `JSR` pushes `JumpEngine` return pointer (`$C891`) |
 | **Post 2x PLA ($8E0A)** | `$8E0A` | `$C8 / $E2` | **`$FF`** | `$AF08` (Main Loop) | **Stack pointer restored to `$FF`!** `JumpEngine` frame popped |
-| **RAM Landing ($03D0)** | `$03D0` | `$03 / $E3` | **`$FF`** | `$AF08` (Main Loop) | CPU enters RAM `$03D0` with `SP = $FF` pointing to `$AF08` |
+| **RAM Landing ($03D0 / $02D0)** | `$03D0 / $02D0` | `$03 / $E3` | **`$FF`** | `$AF08` (Main Loop) | CPU enters RAM `$03D0 / $02D0` with `SP = $FF` pointing to `$AF08` |
 | **Payload RTS** | `$AF08` | `$85 / $00` | `$0101` | Main Engine Loop | **`RTS` pops `$AF08` and cleanly returns to Main Engine Loop!** |
 
 ---
 
-## PPU OAM Buffer ($03D0) Minimal Payload Shaping Analysis
+## PPU OAM Buffer ($03D0 / $02D0) Minimal Payload Shaping Analysis
 
-Address `$03D0` corresponds directly to **Sprite #52** in the NES PPU OAM (Object Attribute Memory) shadow buffer. Each sprite entry consists of 4 bytes: `[Y-Position, Tile ID, Attributes, X-Position]`.
+Address `$03D0` and `$02D0` correspond directly to **Sprite #52** in the NES PPU OAM (Object Attribute Memory) shadow buffers. Each sprite entry consists of 4 bytes: `[Y-Position, Tile ID, Attributes, X-Position]`.
 
 Our data-flow analysis demonstrates that a complete Level 3 Game Victory routine (setting `OperatingMode = $03` and returning via `RTS`) requires positioning only **2 sprites on screen**:
 
 ```asm
-Sprite #52 [RAM $03D0]: Y=169 ($A9), Tile=$03, Attr=$8D, X=112 ($70)
-Sprite #53 [RAM $03D4]: Y=  7 ($07), Tile=$60 (RTS), Attr=$EA (NOP), X=$EA (NOP)
+Sprite #52 [RAM $03D0 / $02D0]: Y=169 ($A9), Tile=$03, Attr=$8D, X=112 ($70)
+Sprite #53 [RAM $03D4 / $02D4]: Y=  7 ($07), Tile=$60 (RTS), Attr=$EA (NOP), X=$EA (NOP)
 
 Disassembled 6502 Machine Code:
-  $03D0: $A9 $03      -> LDA #$03
-  $03D2: $8D $70 $07  -> STA $0770  (OperatingMode = Game Over / Victory!)
-  $03D5: $60          -> RTS        (Clean return to Main Engine Loop!)
-  $03D6: $EA          -> NOP
-  $03D7: $EA          -> NOP
+  $03D0 / $02D0: $A9 $03      -> LDA #$03
+  $03D2 / $02D2: $8D $70 $07  -> STA $0770  (OperatingMode = Game Over / Victory!)
+  $03D5 / $02D5: $60          -> RTS        (Clean return to Main Engine Loop!)
+  $03D6 / $02D6: $EA          -> NOP
+  $03D7 / $02D7: $EA          -> NOP
 ```
 
 ---
@@ -122,11 +123,11 @@ $$\text{ROM Address } \$D736 + \$4B = \$D781 \longrightarrow \text{ROM Value } \
 
 ## Control-Flow Primitive Comparison
 
-| Property / Metric | Legacy Published Vector (2024 TAS #8991S) | This Primitive ($85 \rightarrow \$03D0$) |
+| Property / Metric | Legacy Published Vector (2024 TAS #8991S) | These Primitives ($85 \rightarrow \$03D0$ / $FA \rightarrow \$02D0$) |
 | :--- | :--- | :--- |
-| **PC Redirection** | Multi-stage RTI stack corruption | **Native SMB1 JumpEngine behavior once $85 exists** |
-| **Payload Population** | Pre-loaded via SMB3 cartridge swap | **2 Sprites in OAM Buffer ($03D0-$03D7)** |
-| **Cartridge Swap** | Required (SMB3 hot-swap) | **Not required to demonstrate control-flow primitive** |
+| **PC Redirection** | Multi-stage RTI stack corruption | **Native SMB1 JumpEngine behavior once $85 / $FA exists** |
+| **Payload Population** | Pre-loaded via SMB3 cartridge swap | **2 Sprites in OAM Buffers ($03D0 or $02D0)** |
+| **Cartridge Swap** | Required (SMB3 hot-swap) | **Not required to demonstrate control-flow primitives** |
 | **Controller-Only ACE** | Demonstrated via cartridge swap | **Not yet demonstrated (In-game payload track)** |
 
 ---
@@ -146,17 +147,17 @@ We executed an automated 6502 table analysis script (`enumerate_enemy_ids.py`) a
 
 ## ROM Release Compatibility Matrix
 
-| ROM Release / Variant | SHA-256 Hash | Base Offset | ROM Byte @ $C974 | Resolved Target |
+| ROM Release / Variant | SHA-256 Hash | Base Offset | ROM Bytes ($C974 / $CA5E) | Resolved Landings |
 | :--- | :--- | :--- | :--- | :--- |
-| **Super Mario Bros. (World) (JU) [!] (PRG0)** | `25ca46e02b6f834f359e05f3678c...` | `$C891` | `D0 03` | **`$03D0` (Verified)** |
-| **Super Mario Bros. + Duck Hunt (USA)** | `6b08051759600a94e1d6706e2329...` | `$C891` | `D0 03` | **`$03D0` (Verified)** |
-| **Super Mario Bros. (Europe) (PAL)** | `d84813589b37803309a69622d64a...` | `$C891` | `D0 03` | **`$03D0` (Verified)** |
+| **Super Mario Bros. (World) (JU) [!] (PRG0)** | `25ca46e02b6f834f359e05f3678c...` | `$C891` | `D0 03` / `D0 02` | **`$03D0` & `$02D0` (Verified)** |
+| **Super Mario Bros. + Duck Hunt (USA)** | `6b08051759600a94e1d6706e2329...` | `$C891` | `D0 03` / `D0 02` | **`$03D0` & `$02D0` (Verified)** |
+| **Super Mario Bros. (Europe) (PAL)** | `d84813589b37803309a69622d64a...` | `$C891` | `D0 03` / `D0 02` | **`$03D0` & `$02D0` (Verified)** |
 
 ---
 
 ## Open Research Tracks to Full In-Game ACE
 
-To elevate this control-flow primitive to a 100% self-contained in-game ACE exploit without harness payload injection, two ongoing research tracks are required:
+To elevate these control-flow primitives to a 100% self-contained in-game ACE exploit without harness payload injection, two ongoing research tracks are required:
 
 ### Track 1: Native In-Game Sprite Positioning for OAM Payload
 Demonstrating that player movements, fireball spawns, or enemy object coordinates can position Sprites #52 and #53 at coordinates `Y=169, Tile=$03, Attr=$8D, X=112` and `Y=7, Tile=$60` during normal gameplay.
