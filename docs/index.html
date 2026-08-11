@@ -26,7 +26,7 @@
   <header class="nav-header">
     <div class="nav-container">
       <div class="nav-left">
-        <a href="#" class="nav-logo">Security Research</a>
+        <a href="#" class="nav-logo">Research</a>
         <nav class="nav-links">
           <a href="#summary" class="nav-link">Overview</a>
           <a href="#vulnerability" class="nav-link">Vector</a>
@@ -35,8 +35,7 @@
         </nav>
       </div>
       <div class="nav-right">
-        <a href="https://github.com/astelmach20" class="btn-signin" target="_blank">Sign in</a>
-        <a href="https://github.com/astelmach20" class="btn-contact" target="_blank">View GitHub</a>
+        <a href="https://github.com/astelmach20/mesen-ce-ace-research" class="btn-contact" target="_blank">View GitHub Repository</a>
       </div>
     </div>
   </header>
@@ -49,14 +48,6 @@
       <div class="badge-tag">research</div>
       <h1 class="article-title">Super Mario Bros. Arbitrary Code Execution: A Direct Single-Step RAM Jump in MesenCE</h1>
       <p class="article-subtitle">How we discovered a novel 6502 JumpEngine off-by-one primitive in SMB1 that bypasses cartridge swapping, open-bus state corruption, and multi-stage stack manipulation.</p>
-
-      <div class="meta-bar">
-        <span>Security Research Team</span>
-        <span>•</span>
-        <span>August 11, 2026</span>
-        <span>•</span>
-        <span>7 min read</span>
-      </div>
     </header>
 
     <!-- Main Article Content -->
@@ -67,7 +58,7 @@
       <!-- Hero Architectural Diagram -->
       <figure class="image-card">
         <div class="image-container">
-          <img src="assets/hero_ace_diagram.jpg" alt="Arbitrary Code Execution Exploit Architectural Flowchart">
+          <img src="assets/hero_ace_diagram.png" alt="MOS 6502 JumpEngine Execution Flow Diagram">
         </div>
         <figcaption class="image-caption">
           Figure 1: Architectural execution flow of the JumpEngine <code>$C891</code> off-by-one mapping directly to NES RAM <code>$03D0</code> and driving dynamic PPU palette rendering.
@@ -203,7 +194,7 @@ RTS                 ; Clean return to main engine</code></pre>
       <!-- Vector Comparison Diagram Card -->
       <figure class="image-card">
         <div class="image-container">
-          <img src="assets/vector_comparison_diagram.jpg" alt="Systems Security Exploit Comparison Diagram">
+          <img src="assets/vector_comparison_diagram.png" alt="Exploit Vector Comparison Infographic Diagram">
         </div>
         <figcaption class="image-caption">
           Figure 2: Infographic comparison of legacy multi-stage TAS ACE exploits versus our direct single-step RAM jump primitive.
@@ -219,7 +210,7 @@ RTS                 ; Clean return to main engine</code></pre>
       </ul>
 
       <!-- C++20 Architecture -->
-      <h2>Modern C++20 Harness Engine</h2>
+      <h2>Modern C++20 Harness Engine Architecture</h2>
       <p>The research harness engine has been refactored into a modern, RAII-compliant object-oriented C++20 codebase:</p>
 
       <div class="code-block">
@@ -252,8 +243,8 @@ public:
   <!-- Site Footer -->
   <footer class="site-footer">
     <div class="footer-container">
-      <div>© 2026 Security & Emulation Research Team. All rights reserved.</div>
-      <div>Targeting MesenCE Commit <code>ad0a1b98</code></div>
+      <div>© 2026 Security & Emulation Research. Target MesenCE Commit <code>ad0a1b98</code></div>
+      <div><a href="https://github.com/astelmach20/mesen-ce-ace-research" style="color: inherit;" target="_blank">GitHub Repository</a></div>
     </div>
   </footer>
 
