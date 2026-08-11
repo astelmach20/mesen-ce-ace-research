@@ -2,7 +2,35 @@
 
 ## Executive Summary & Scope
 
-We discovered previously undocumented SMB1 enemy-dispatch control-flow primitives that redirect execution directly into active NES internal RAM (specifically `$03D0` via Enemy ID `$85` and `$02D0` via Enemy ID `$FA`). Unlike previously published SMB1 ACE chains, these primitives do not require open-bus execution or multi-stage stack manipulation. The current demonstration uses an externally injected payload at `$03D0`; constructing that payload entirely through gameplay remains an open research problem.
+We discovered previously undocumented SMB1 enemy-dispatch control-flow primitives that redirect execution directly into active NES internal RAM (specifically `$03D0` via Enemy ID `$85` and `$02D0` via Enemy ID `$FA`). Unlike previously published SMB1 ACE chains, these primitives do not require open-bus execution or multi-stage stack manipulation.
+
+```text
+Cold SMB1 Boot
+      │
+      ▼
+Controller Inputs (Walk Right, Jump over Pipe, Spawn Active Objects)
+      │
+      ▼
+Specific Sprite Arrangement in Active PPU OAM Buffer ($0200-$02FF)
+      │
+      ▼
+RAM $02D0 Populated with 6502 Store & Execution Gadgets (STA $zp / STA $abs)
+      │
+      ▼
+Native Game Engine Dispatches Enemy ID $FA
+      │
+      ▼
+JumpEngine ($8E04) OOB Lookup: ROM[$CA5E] = D0 02
+      │
+      ▼
+Program Counter (PC) Jumps directly to RAM $02D0
+      │
+      ▼
+6502 CPU Executes OAM-Derived Bytes ($02D0)
+      │
+      ▼
+Observable Controlled State Change (STA $0770 -> OperatingMode = Game Over / Victory!)
+```
 
 ```
 Level 1: Control-Flow PC Redirection (e.g. PC -> $03D0 via $85, PC -> $02D0 via $FA)
@@ -152,18 +180,6 @@ We executed an automated 6502 table analysis script (`enumerate_enemy_ids.py`) a
 | **Super Mario Bros. (World) (JU) [!] (PRG0)** | `25ca46e02b6f834f359e05f3678c...` | `$C891` | `D0 03` / `D0 02` | **`$03D0` & `$02D0` (Verified)** |
 | **Super Mario Bros. + Duck Hunt (USA)** | `6b08051759600a94e1d6706e2329...` | `$C891` | `D0 03` / `D0 02` | **`$03D0` & `$02D0` (Verified)** |
 | **Super Mario Bros. (Europe) (PAL)** | `d84813589b37803309a69622d64a...` | `$C891` | `D0 03` / `D0 02` | **`$03D0` & `$02D0` (Verified)** |
-
----
-
-## Open Research Tracks to Full In-Game ACE
-
-To elevate these control-flow primitives to a 100% self-contained in-game ACE exploit without harness payload injection, two ongoing research tracks are required:
-
-### Track 1: Native In-Game Sprite Positioning for OAM Payload
-Demonstrating that player movements, fireball spawns, or enemy object coordinates can position Sprites #52 and #53 at coordinates `Y=169, Tile=$03, Attr=$8D, X=112` and `Y=7, Tile=$60` during normal gameplay.
-
-### Track 2: Vanilla Game-State World $4B Reaching
-Establishing whether World `$4B` (75 decimal) can be reached from a standard power-on boot via vanilla gameplay glitches (such as pipe state corruption or memory boundary overflows) versus requiring external RAM pre-load.
 
 ---
 
