@@ -1,6 +1,34 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# OS / Editor
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.vscode/
+.idea/
+
+# C++ Build & Harness Binaries
 *.dSYM/
+*.o
+*.a
 fuzz/ace_demo
 fuzz/ace_video
 fuzz/fuzz_harness
 fuzz/fuzz_harness_bin
-.DS_Store
+fuzz/enumerate_ids
+fuzz/search_native_route
+fuzz/oam_gadget_scanner
+fuzz/strict_cpu_tracer
+fuzz/native_enemy_spawner_search
+fuzz/zero_page_d9_harness
+fuzz/trace_bus_writes*
+fuzz/trace_goomba_spawn_d9

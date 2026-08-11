@@ -213,7 +213,7 @@ def create_comparison_diagram(output_png):
     print(f"Generated 4K Comparison diagram (3600x1890): {output_png}")
 
 if __name__ == '__main__':
-    out_dir = "/Users/andrewstelmach/Desktop/smb1-ace-research/docs/assets"
+    out_dir = "docs/assets"
     os.makedirs(out_dir, exist_ok=True)
     create_hero_diagram(os.path.join(out_dir, "hero_ace_diagram.png"))
     create_comparison_diagram(os.path.join(out_dir, "vector_comparison_diagram.png"))

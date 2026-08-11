@@ -35,7 +35,7 @@ def analyze_ram_controllability(rom_path):
     return ranked
 
 if __name__ == '__main__':
-    rom_path = "/Users/andrewstelmach/Desktop/mesen-ce-security-review/fuzz/smb_mapper99.nes"
+    rom_path = sys.argv[1] if len(sys.argv) > 1 else "smb_mapper99.nes"
     ranked = analyze_ram_controllability(rom_path)
     
     print("=========================================================================")

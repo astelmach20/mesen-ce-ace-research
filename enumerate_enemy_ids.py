@@ -85,7 +85,7 @@ def enumerate_all_enemy_ids(rom_path):
     return results
 
 if __name__ == '__main__':
-    rom_path = sys.argv[1] if len(sys.argv) > 1 else "/Users/andrewstelmach/Desktop/mesen-ce-security-review/fuzz/smb_mapper99.nes"
+    rom_path = sys.argv[1] if len(sys.argv) > 1 else "smb_mapper99.nes"
     results = enumerate_all_enemy_ids(rom_path)
     
     print(f"=========================================================================")

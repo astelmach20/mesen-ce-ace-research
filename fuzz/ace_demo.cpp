@@ -15,7 +15,7 @@ int main(int argc, char** argv) {
 
     try {
         std::filesystem::path rom_path = argv[1];
-        std::filesystem::path proof_dir = (argc >= 3) ? argv[2] : "/Users/andrewstelmach/Downloads/ace-proof";
+        std::filesystem::path proof_dir = (argc >= 3) ? argv[2] : "docs/assets/ace-proof";
 
         std::filesystem::create_directories(proof_dir);
 

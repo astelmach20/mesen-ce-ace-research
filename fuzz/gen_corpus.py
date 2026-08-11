@@ -14,7 +14,7 @@ import struct
 import sys
 import zlib
 
-SEED_ROM = "/Users/andrewstelmach/Downloads/Super Mario Bros. (Japan, USA).nes"
+SEED_ROM = "smb_mapper99.nes"
 OUT_DIR = sys.argv[1] if len(sys.argv) > 1 else "corpus"
 COUNT = int(sys.argv[2]) if len(sys.argv) > 2 else 800
 random.seed(0xBADC0DE)

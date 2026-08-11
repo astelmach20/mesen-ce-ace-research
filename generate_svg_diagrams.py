@@ -116,6 +116,6 @@ def create_hero_svg(output_svg):
     print(f"Generated SVG Hero diagram: {output_svg}")
 
 if __name__ == '__main__':
-    out_dir = "/Users/andrewstelmach/Desktop/smb1-ace-research/docs/assets"
+    out_dir = "docs/assets"
     os.makedirs(out_dir, exist_ok=True)
     create_hero_svg(os.path.join(out_dir, "hero_ace_diagram.svg"))

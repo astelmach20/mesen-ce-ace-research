@@ -23,7 +23,7 @@ def find_all_oam_page_landings(rom_path):
     return oam_landings
 
 if __name__ == '__main__':
-    rom_path = "/Users/andrewstelmach/Desktop/mesen-ce-security-review/fuzz/smb_mapper99.nes"
+    rom_path = sys.argv[1] if len(sys.argv) > 1 else "smb_mapper99.nes"
     oam_landings = find_all_oam_page_landings(rom_path)
     
     print("=========================================================================")
