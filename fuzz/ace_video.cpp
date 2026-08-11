@@ -42,7 +42,7 @@ public:
         std::cout << "[Recorder] Phase 1: Recording Title Screen (120 frames)...\n";
         record_frames(120);
 
-        auto payload = ace::Payload6502::create_rainbow_visual_routine();
+        auto payload = ace::Payload6502::create_instant_win_routine();
         m_harness.inject_vector_and_payload(payload);
 
         std::cout << "[Recorder] Phase 2: Transitioning to Gameplay Mode...\n";

@@ -18,12 +18,22 @@ public:
     [[nodiscard]] const uint8_t* data() const noexcept { return m_bytes.data(); }
     [[nodiscard]] std::string_view description() const noexcept { return m_description; }
 
-    /// Build the standard SMB1 60-byte visual ACE payload:
-    /// - Synchronize with VBLANK
-    /// - Overwrite NES PPU palette memory ($3F00-$3F1F) with dynamic rainbow colors
-    /// - Restore PPU address register to nametable
-    /// - Update Mario invincibility timer and promote to Fire Mario
-    /// - Write memory assertion marker ($07FF = $85) and RTS.
+    /// Build the SMB1 Instant Victory / Game Completion ACE payload (18 bytes):
+    /// - Sets OperatingMode = $02 (Victory / Ending sequence)
+    /// - Sets WorldEndRoutineTask = $01 (Triggers Princess Cutscene & Credits)
+    /// - Asserts diagnostic marker byte ($07FF = $85)
+    /// - Jumps directly to SMB1 Victory Dispatch ($E525)
+    static Payload6502 create_instant_win_routine() {
+        std::vector<uint8_t> bytes = {
+            0xA9, 0x02, 0x8D, 0x70, 0x07,  // LDA #$02; STA $0770 (OperatingMode = Victory)
+            0xA9, 0x01, 0x8D, 0x1B, 0x07,  // LDA #$01; STA $071B (WorldEndRoutineTask = 1)
+            0xA9, 0x85, 0x8D, 0xFF, 0x07,  // LDA #$85; STA $07FF (Marker assertion = $85)
+            0x4C, 0x25, 0xE5               // JMP $E525 (SMB1 Victory Dispatch Routine)
+        };
+        return Payload6502(std::move(bytes), "18-byte 6502 Instant Game Completion & Princess Cutscene Routine");
+    }
+
+    /// Build the standard SMB1 60-byte visual ACE payload (rainbow colors & state mutation)
     static Payload6502 create_rainbow_visual_routine() {
         std::vector<uint8_t> bytes = {
             0x2C, 0x02, 0x20,                               // BIT $2002 (Wait for VBLANK)

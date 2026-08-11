@@ -30,7 +30,7 @@ int main(int argc, char** argv) {
             return 1;
         }
 
-        auto payload = mesen::ace::Payload6502::create_rainbow_visual_routine();
+        auto payload = mesen::ace::Payload6502::create_instant_win_routine();
         std::cout << "[Info] Payload: " << payload.description() << " (" << payload.size() << " bytes)\n";
 
         harness.inject_vector_and_payload(payload);

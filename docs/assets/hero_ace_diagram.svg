@@ -83,25 +83,21 @@
   <!-- 4. Box: Payload -->
   <rect x="40" y="375" width="1120" height="205" rx="8" fill="#111827" stroke="#3B82F6" stroke-width="1.5" />
   <rect x="40" y="375" width="1120" height="32" rx="8" class="box-hdr-4" />
-  <text x="52" y="396" class="txt-bold" fill="#93C5FD">NES Internal RAM Execution Landing ($03D0) — 60-Byte Visual Payload Routine</text>
+  <text x="52" y="396" class="txt-bold" fill="#93C5FD">NES Internal RAM Execution Landing ($03D0) — 18-Byte Instant Victory Payload Routine</text>
 
-  <text x="52" y="430" class="txt-bold" fill="#F59E0B">1. Vblank Wait</text>
-  <text x="220" y="430" class="txt-code-bold" fill="#38BDF8">BIT $2002; BPL -3</text>
-  <text x="510" y="430" class="subtitle">Synchronizes CPU writes safely with PPU vertical blanking</text>
+  <text x="52" y="435" class="txt-bold" fill="#F59E0B">1. OperatingMode = Victory</text>
+  <text x="320" y="435" class="txt-code-bold" fill="#38BDF8">LDA #$02; STA $0770</text>
+  <text x="610" y="435" class="subtitle">Shifts main game loop into Victory / End-Game state ($02)</text>
 
-  <text x="52" y="460" class="txt-bold" fill="#F59E0B">2. Palette Overwrite</text>
-  <text x="220" y="460" class="txt-code-bold" fill="#38BDF8">STA $2006 ($3F00); STA $2007</text>
-  <text x="510" y="460" class="subtitle">Overwrites PPU palette memory ($3F00-$3F1F) with dynamic HSV colors</text>
+  <text x="52" y="470" class="txt-bold" fill="#F59E0B">2. WorldEndRoutineTask = 1</text>
+  <text x="320" y="470" class="txt-code-bold" fill="#38BDF8">LDA #$01; STA $071B</text>
+  <text x="610" y="470" class="subtitle">Triggers Princess cutscene task dispatcher</text>
 
-  <text x="52" y="490" class="txt-bold" fill="#F59E0B">3. PPU Reset</text>
-  <text x="220" y="490" class="txt-code-bold" fill="#38BDF8">STA $2006 ($2000)</text>
-  <text x="510" y="490" class="subtitle">Restores PPU address registers back to nametable for normal rendering</text>
+  <text x="52" y="505" class="txt-bold" fill="#F59E0B">3. Diagnostic Marker</text>
+  <text x="320" y="505" class="txt-code-bold" fill="#38BDF8">LDA #$85; STA $07FF</text>
+  <text x="610" y="505" class="subtitle">Asserts diagnostic marker byte ($85)</text>
 
-  <text x="52" y="520" class="txt-bold" fill="#F59E0B">4. State Mutators</text>
-  <text x="220" y="520" class="txt-code-bold" fill="#38BDF8">STA $079F=#$FF; STA $0756=#$02</text>
-  <text x="510" y="520" class="subtitle">Sets Star Invincibility timer to 255 and promotes Mario to Fire Mario</text>
-
-  <text x="52" y="550" class="txt-bold" fill="#F59E0B">5. Marker Assertion</text>
-  <text x="220" y="550" class="txt-code-bold" fill="#38BDF8">STA $07FF=#$85; RTS</text>
-  <text x="510" y="550" class="subtitle">Asserts diagnostic marker byte ($85) and cleanly returns to game engine</text>
+  <text x="52" y="540" class="txt-bold" fill="#F59E0B">4. Victory Dispatch Jump</text>
+  <text x="320" y="540" class="txt-code-bold" fill="#38BDF8">JMP $E525</text>
+  <text x="610" y="540" class="subtitle">Jumps directly into SMB1 victory &amp; princess credits routine</text>
 </svg>
