@@ -123,10 +123,10 @@ JMP ($0006)</code></pre>
         </div>
       </div>
 
-      <p>On the 6502 CPU, <code>JSR</code> pushes \(\text{JSR\_address} + 2\) to the call stack—specifically pointing to the address of the <em>high operand byte</em>. Standard ROM disassemblers label the jump table starting at <code>$C892</code>. However, because <code>JumpEngine</code> pulls the pushed return address directly, its effective base address is <strong><code>$C891</code></strong> (one byte earlier).</p>
+      <p>On the 6502 CPU, <code>JSR</code> pushes <code>JSR_address + 2</code> to the call stack—specifically pointing to the address of the <em>high operand byte</em>. Standard ROM disassemblers label the jump table starting at <code>$C892</code>. However, because <code>JumpEngine</code> pulls the pushed return address directly, its effective base address is <strong><code>$C891</code></strong> (one byte earlier).</p>
 
       <div class="math-box">
-        $$\text{target} = \text{ROM16}\left[ \$C891 + 2 \times \text{index} + 1 \right] \pmod{256}$$
+        $$\text{target} = \text{ROM16}\left[ \text{\$C891} + 2 \times \text{index} + 1 \right] \pmod{256}$$
       </div>
 
       <!-- Bowser Trigger Math -->
@@ -145,10 +145,10 @@ STA Enemy_ID,x</code></pre>
         </div>
       </div>
 
-      <p>The <code>BowserIdentities</code> array is 8 bytes long (located at <code>$D736</code>). When \(\text{WorldNumber} \ge 8\), the index reads out-of-bounds into adjacent ROM code bytes. For <strong>World 75 (<code>$4B</code>)</strong>:</p>
+      <p>The <code>BowserIdentities</code> array is 8 bytes long (located at <code>$D736</code>). When <code>WorldNumber &ge; 8</code>, the index reads out-of-bounds into adjacent ROM code bytes. For <strong>World 75 (<code>$4B</code>)</strong>:</p>
 
       <div class="math-box">
-        $$\$D736 + \$4B = \$D781 \longrightarrow \text{ROM Value } \$85$$
+        $$\text{\$D736} + \text{\$4B} = \text{\$D781} \longrightarrow \text{ROM Value } \text{\$85}$$
       </div>
 
       <p>Defeating Bowser with fireballs in World 75 assigns Enemy ID <code>$85</code> to the active slot, causing the subsequent per-frame dispatch to immediately execute 6502 machine code located at NES RAM <code>$03D0</code>.</p>
