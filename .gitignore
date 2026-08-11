@@ -1,0 +1,6 @@
+*.dSYM/
+fuzz/ace_demo
+fuzz/ace_video
+fuzz/fuzz_harness
+fuzz/fuzz_harness_bin
+.DS_Store

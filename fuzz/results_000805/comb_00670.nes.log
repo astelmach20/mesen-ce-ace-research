@@ -1,0 +1,62 @@
+=================================================================
+==62877==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x628000003930 at pc 0x000104abebd8 bp 0x00016b611670 sp 0x00016b611668
+READ of size 1 at 0x628000003930 thread T0
+    #0 0x000104abebd4 in VsControlManager::GetPrgChrSelectBit() VsControlManager.cpp:65
+    #1 0x000104b25300 in VsSystem::ProcessCpuClock() VsSystem.h:86
+    #2 0x000104a1e598 in NesConsole::ProcessCpuClock() NesConsole.cpp:66
+    #3 0x000104b6c4e4 in NesCpu::StartCpuCycle(bool) NesCpu.cpp:326
+    #4 0x000104b6c4e4 in NesCpu::Reset(bool, ConsoleRegion) NesCpu.cpp:165
+    #5 0x000104a20768 in NesConsole::LoadRom(VirtualFile&) NesConsole.cpp:229
+    #6 0x000105002f00 in void Emulator::TryLoadRom<NesConsole>(VirtualFile&, LoadRomResult&, std::__1::unique_ptr<IConsole, std::__1::default_delete<IConsole>>&, bool) Emulator.cpp:605
+    #7 0x000104ffee38 in Emulator::TryLoadRom(VirtualFile&, LoadRomResult&, std::__1::unique_ptr<IConsole, std::__1::default_delete<IConsole>>&, bool) Emulator.cpp:577
+    #8 0x000104ffee38 in Emulator::InternalLoadRom(VirtualFile, VirtualFile, bool, bool) Emulator.cpp:449
+    #9 0x000104ffde7c in Emulator::LoadRom(VirtualFile, VirtualFile, bool, bool) Emulator.cpp:376
+    #10 0x0001054f26b4 in LoadRom EmuApiWrapper.cpp:146
+    #11 0x0001047e8fcc in main fuzz_harness.cpp:51
+    #12 0x000181d87dfc in start+0x1b4c (dyld:arm64e+0x1fdfc)
+
+0x628000003930 is located 24 bytes after 14360-byte region [0x628000000100,0x628000003918)
+allocated by thread T0 here:
+    #0 0x00010ab810e8 in _Znwm+0x6c (libclang_rt.asan_osx_dynamic.dylib:arm64+0x650e8)
+    #1 0x000104a20284 in NesConsole::LoadRom(VirtualFile&) NesConsole.cpp:192
+    #2 0x000105002f00 in void Emulator::TryLoadRom<NesConsole>(VirtualFile&, LoadRomResult&, std::__1::unique_ptr<IConsole, std::__1::default_delete<IConsole>>&, bool) Emulator.cpp:605
+    #3 0x000104ffee38 in Emulator::TryLoadRom(VirtualFile&, LoadRomResult&, std::__1::unique_ptr<IConsole, std::__1::default_delete<IConsole>>&, bool) Emulator.cpp:577
+    #4 0x000104ffee38 in Emulator::InternalLoadRom(VirtualFile, VirtualFile, bool, bool) Emulator.cpp:449
+    #5 0x000104ffde7c in Emulator::LoadRom(VirtualFile, VirtualFile, bool, bool) Emulator.cpp:376
+    #6 0x0001054f26b4 in LoadRom EmuApiWrapper.cpp:146
+    #7 0x0001047e8fcc in main fuzz_harness.cpp:51
+    #8 0x000181d87dfc in start+0x1b4c (dyld:arm64e+0x1fdfc)
+
+SUMMARY: AddressSanitizer: heap-buffer-overflow VsControlManager.cpp:65 in VsControlManager::GetPrgChrSelectBit()
+Shadow bytes around the buggy address:
+  0x628000003680: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x628000003700: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x628000003780: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x628000003800: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x628000003880: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x628000003900: 00 00 00 fa fa fa[fa]fa fa fa fa fa fa fa fa fa
+  0x628000003980: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x628000003a00: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x628000003a80: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x628000003b00: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x628000003b80: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==62877==ABORTING

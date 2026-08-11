@@ -1,0 +1,8 @@
+_: line 1: 62877 Abort trap: 6           ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 "$HARNESS" "$rom" "$FRAMES" > "$out" 2>&1
+CRASH rc=134 rom=corpus/comb_00670.nes
+_: line 1: 67102 Abort trap: 6           ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 "$HARNESS" "$rom" "$FRAMES" > "$out" 2>&1
+CRASH rc=134 rom=corpus/map_00058.nes
+_: line 1: 68824 Abort trap: 6           ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 "$HARNESS" "$rom" "$FRAMES" > "$out" 2>&1
+CRASH rc=134 rom=corpus/comb_00674.nes
+_: line 1: 74961 Abort trap: 6           ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 "$HARNESS" "$rom" "$FRAMES" > "$out" 2>&1
+CRASH rc=134 rom=corpus/comb_00789.nes
