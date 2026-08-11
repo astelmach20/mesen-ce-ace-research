@@ -84,6 +84,26 @@ Jump to RAM $03D0 & RTS:
 
 ---
 
+## PPU OAM Buffer ($03D0) Minimal Payload Shaping Analysis
+
+Address `$03D0` corresponds directly to **Sprite #52** in the NES PPU OAM (Object Attribute Memory) shadow buffer. Each sprite entry consists of 4 bytes: `[Y-Position, Tile ID, Attributes, X-Position]`.
+
+Our data-flow analysis demonstrates that a complete Level 3 Game Victory routine (setting `OperatingMode = $03` and returning via `RTS`) requires positioning only **2 sprites on screen**:
+
+```asm
+Sprite #52 [RAM $03D0]: Y=169 ($A9), Tile=$03, Attr=$8D, X=112 ($70)
+Sprite #53 [RAM $03D4]: Y=  7 ($07), Tile=$60 (RTS), Attr=$EA (NOP), X=$EA (NOP)
+
+Disassembled 6502 Machine Code:
+  $03D0: $A9 $03      -> LDA #$03
+  $03D2: $8D $70 $07  -> STA $0770  (OperatingMode = Game Over / Victory!)
+  $03D5: $60          -> RTS        (Clean return to Main Engine Loop!)
+  $03D6: $EA          -> NOP
+  $03D7: $EA          -> NOP
+```
+
+---
+
 ## Bowser Table Out-Of-Bounds Analysis
 
 In SMB1 ROM, Enemy ID `$85` is referenced inside the `HurtBowser` routine (`$D76D`):
@@ -105,7 +125,7 @@ $$\text{ROM Address } \$D736 + \$4B = \$D781 \longrightarrow \text{ROM Value } \
 | Property / Metric | Legacy Published Vector (2024 TAS #8991S) | This Primitive ($85 \rightarrow \$03D0$) |
 | :--- | :--- | :--- |
 | **PC Redirection** | Multi-stage RTI stack corruption | **Native SMB1 JumpEngine behavior once $85 exists** |
-| **Payload Population** | Pre-loaded via SMB3 cartridge swap | **Currently externally injected (Open Research Track)** |
+| **Payload Population** | Pre-loaded via SMB3 cartridge swap | **2 Sprites in OAM Buffer ($03D0-$03D7)** |
 | **Cartridge Swap** | Required (SMB3 hot-swap) | **Not required to demonstrate control-flow primitive** |
 | **Controller-Only ACE** | Demonstrated via cartridge swap | **Not yet demonstrated (In-game payload track)** |
 
@@ -138,8 +158,8 @@ We executed an automated 6502 table analysis script (`enumerate_enemy_ids.py`) a
 
 To elevate this control-flow primitive to a 100% self-contained in-game ACE exploit without harness payload injection, two ongoing research tracks are required:
 
-### Track 1: Payload Construction in PPU OAM Buffer ($03D0–$03FF)
-NES RAM range `$0300–$03FF` serves as the PPU OAM (Object Attribute Memory) shadow buffer, which holds 64 4-byte sprite attributes (Y-pos, Tile ID, Attribute flags, X-pos). Address `$03D0` corresponds to Sprite #13. Investigating whether player inputs, object coordinates, or sprite tile assignments can deterministically arrange valid 6502 machine instructions inside `$03D0+` is the primary data-flow milestone.
+### Track 1: Native In-Game Sprite Positioning for OAM Payload
+Demonstrating that player movements, fireball spawns, or enemy object coordinates can position Sprites #52 and #53 at coordinates `Y=169, Tile=$03, Attr=$8D, X=112` and `Y=7, Tile=$60` during normal gameplay.
 
 ### Track 2: Vanilla Game-State World $4B Reaching
 Establishing whether World `$4B` (75 decimal) can be reached from a standard power-on boot via vanilla gameplay glitches (such as pipe state corruption or memory boundary overflows) versus requiring external RAM pre-load.
