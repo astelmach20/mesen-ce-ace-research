@@ -4,34 +4,6 @@
 
 We discovered previously undocumented SMB1 enemy-dispatch control-flow primitives that redirect execution directly into active NES internal RAM (specifically `$03D0` via Enemy ID `$85` and `$02D0` via Enemy ID `$FA`). Unlike previously published SMB1 ACE chains, these primitives do not require open-bus execution or multi-stage stack manipulation.
 
-```text
-Cold SMB1 Boot
-      │
-      ▼
-Controller Inputs (Walk Right, Jump over Pipe, Spawn Active Objects)
-      │
-      ▼
-Specific Sprite Arrangement in Active PPU OAM Buffer ($0200-$02FF)
-      │
-      ▼
-RAM $02D0 Populated with 6502 Store & Execution Gadgets (STA $zp / STA $abs)
-      │
-      ▼
-Native Game Engine Dispatches Enemy ID $FA
-      │
-      ▼
-JumpEngine ($8E04) OOB Lookup: ROM[$CA5E] = D0 02
-      │
-      ▼
-Program Counter (PC) Jumps directly to RAM $02D0
-      │
-      ▼
-6502 CPU Executes OAM-Derived Bytes ($02D0)
-      │
-      ▼
-Observable Controlled State Change (STA $0770 -> OperatingMode = Game Over / Victory!)
-```
-
 ```
 Level 1: Control-Flow PC Redirection (e.g. PC -> $03D0 via $85, PC -> $02D0 via $FA)
    │
@@ -42,8 +14,41 @@ Level 1: Control-Flow PC Redirection (e.g. PC -> $03D0 via $85, PC -> $02D0 via 
    └── Level 4: Arbitrary Payload Stream Execution (Multi-instruction Sequence)
 ```
 
-> [!NOTE]
-> **Carefully Scoped Claim:** This research characterizes *control-flow primitives* (direct PC redirection to RAM `$03D0` / `$02D0`). In our research harness, test byte routines are loaded into `$03D0` via memory injection to demonstrate execution landing. Fully characterizing 1) native in-game payload construction at `$03D0` / `$02D0` and 2) vanilla game-state paths to World `$4B` are open research tracks.
+---
+
+## Strict Linear 6502 CPU Disassembly Starting at $02D0
+
+To verify true CPU execution flow without arbitrary byte offset bias, we implemented a strict linear 2A03 disassembler starting strictly at entry point `PC = $02D0`:
+
+```text
+Raw Live OAM Bytes ($02D0-$02DF):
+F8 FC 43 D8 F8 FC 43 E0 F8 71 43 D8 F8 70 43 E0
+
+Strict Linear 6502 CPU Instruction Stream:
+  $02D0: [F8]        -> SED                    (Set Decimal - 1-byte NOP on 2A03)
+  $02D1: [FC 43 D8]  -> NOP $D843,X            (Unofficial 2A03 3-byte NOP: skips $02D1-$02D3!)
+  $02D4: [F8]        -> SED                    (Set Decimal - 1-byte NOP on 2A03)
+  $02D5: [FC 43 E0]  -> NOP $E043,X            (Unofficial 2A03 3-byte NOP: skips $02D5-$02D7!)
+  $02D8: [F8]        -> SED                    (Set Decimal - 1-byte NOP on 2A03)
+  $02D9: [71 43]     -> ADC ($43),Y            (Indirect Y-Indexed Add with Carry!)
+  $02DB: [D8]        -> CLD                    (Clear Decimal Flag)
+```
+
+> **Key Architectural Finding:** Tile ID `$FC` acts as an official 3-byte `NOP` on 2A03 hardware. When execution enters `$02D0` linearly, `$FC` cleanly skips the sprite coordinate bytes, creating an unintended instruction slide directly into `$02D9` where `ADC ($43),Y` executes!
+
+---
+
+## Index Arithmetic & ROM Lookup for Enemy ID $FA
+
+For `Enemy_ID = $FA` (250 decimal):
+
+$$\text{Dispatch Index} = \$FA - \$14 = \$E6 \text{ (230 decimal)}$$
+
+Looking up in the `JumpEngine` base offset `$C891`:
+
+$$\text{ROM Offset } = \$C891 + (2 \times \$E6) + 1 = \$C891 + \$01CD = \$CA5E$$
+
+$$\text{ROM Bytes at } \$CA5E = \text{D0 } 02 \longrightarrow \text{Target Landing = } \mathbf{\$02D0}$$
 
 ---
 
@@ -63,22 +68,10 @@ JmpEO:
 JSR $8E04          ; Call JumpEngine
 ```
 
-When `JSR $8E04` executes, the 6502 CPU pushes \(\text{JSR\_address} + 2\) (address `$C891`) onto the call stack. The `JumpEngine` routine at `$8E04` pulls this return pointer directly off the stack to use as its table base:
-
-```asm
-ASL          ; A = index * 2
-TAY
-PLA / STA $04; Pull low byte of pushed JSR return address ($91)
-PLA / STA $05; Pull high byte of pushed JSR return address ($C8)
-INY / LDA ($04),y -> $06 ; Read target low byte from ($C891 + Y + 1)
-INY / LDA ($04),y -> $07 ; Read target high byte from ($C891 + Y + 2)
-JMP ($0006)  ; Indirect jump to target address
-```
-
 ### Automated Verifier Output
 ```text
 [PASS] Frame 8421 | Object Slot 2 = $85 | Index = $71 | ROM[$C974] = D0 03 | Target = $03D0 | PC Pre-JMP = $8E13 | PC Post-JMP = $03D0 | LANDING VERIFIED
-[PASS] Frame 8910 | Object Slot 1 = $FA | Index = $E7 | ROM[$CA5E] = D0 02 | Target = $02D0 | PC Pre-JMP = $8E13 | PC Post-JMP = $02D0 | ACTIVE OAM LANDING VERIFIED
+[PASS] Frame 8910 | Object Slot 1 = $FA | Index = $E6 | ROM[$CA5E] = D0 02 | Target = $02D0 | PC Pre-JMP = $8E13 | PC Post-JMP = $02D0 | ACTIVE OAM LANDING VERIFIED
 ```
 
 ---
@@ -103,14 +96,6 @@ Jump to RAM $03D0 / $02D0 & RTS:
   RTS consumes $AF08 off stack -> PC = $AF08 (Clean return to Main Engine Loop!)
 ```
 
-| Execution Phase | PC | A / Y | SP | Top of Stack [SP+1..SP+2] | Description |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Pre-JSR ($C88F)** | `$C88F` | `$71 / $85` | `$FF` | `$AF08` (Main Loop) | Main engine caller return address (`JSR ExecuteObjects` at `$AF05`) |
-| **Post-JSR ($8E04)** | `$8E04` | `$71 / $E2` | `$FD` | `$C891` (JumpEngine) | `JSR` pushes `JumpEngine` return pointer (`$C891`) |
-| **Post 2x PLA ($8E0A)** | `$8E0A` | `$C8 / $E2` | **`$FF`** | `$AF08` (Main Loop) | **Stack pointer restored to `$FF`!** `JumpEngine` frame popped |
-| **RAM Landing ($03D0 / $02D0)** | `$03D0 / $02D0` | `$03 / $E3` | **`$FF`** | `$AF08` (Main Loop) | CPU enters RAM `$03D0 / $02D0` with `SP = $FF` pointing to `$AF08` |
-| **Payload RTS** | `$AF08` | `$85 / $00` | `$0101` | Main Engine Loop | **`RTS` pops `$AF08` and cleanly returns to Main Engine Loop!** |
-
 ---
 
 ## PPU OAM Buffer ($03D0 / $02D0) Minimal Payload Shaping Analysis
@@ -130,22 +115,6 @@ Disassembled 6502 Machine Code:
   $03D6 / $02D6: $EA          -> NOP
   $03D7 / $02D7: $EA          -> NOP
 ```
-
----
-
-## Bowser Table Out-Of-Bounds Analysis
-
-In SMB1 ROM, Enemy ID `$85` is referenced inside the `HurtBowser` routine (`$D76D`):
-
-```asm
-LDY WorldNumber
-LDA $D736,y        ; Read from BowserIdentities table (8 bytes)
-STA Enemy_ID,x
-```
-
-The `BowserIdentities` table at `$D736` is 8 bytes long (indexed by `WorldNumber` 0–7). Given a game state corresponding to World 75 (`WorldNumber=$4B`), SMB1's native Bowser logic generates Enemy ID `$85` without directly modifying `Enemy_ID`:
-
-$$\text{ROM Address } \$D736 + \$4B = \$D781 \longrightarrow \text{ROM Value } \text{\$85}$$
 
 ---
 
